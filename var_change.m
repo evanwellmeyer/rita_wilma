@@ -1,0 +1,1 @@
+% random script to change variables faster

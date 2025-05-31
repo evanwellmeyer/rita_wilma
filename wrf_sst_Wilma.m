@@ -1,0 +1,168 @@
+% variable fields
+
+clear all;
+
+lat = double(nc_varget('wilma/w_CTL.nc','XLAT'));
+lon = double(nc_varget('wilma/w_CTL.nc','XLONG'));
+
+lat = squeeze(lat(1,:,:));
+lon = squeeze(lon(1,:,:));
+
+%% Auto-extraction of variables
+
+filename = 'sst_1985-2005.nc';
+
+disp('Extracting surface file data...')
+
+ncid = netcdf.open(filename);
+info = ncinfo(filename); %returns all the informations about the file.nc
+output_type= ('''double''');
+for i = 1:length(info.Variables)
+    varname = info.Variables(i).Name;
+    varid = netcdf.inqVarID(ncid,varname);
+    eval([varname ' = netcdf.getVar(ncid,varid,' output_type ');'])
+    eval([varname ' = pagetranspose(' varname ');']) % sets the order of variables as latitude, longitude, level
+    if i > length(info.Dimensions) % excluding latitude, longitude and time variables
+        scale_factor = ncreadatt(filename,varname,'scale_factor');
+        offset = ncreadatt(filename,varname,'add_offset');
+        eval([varname ' = ' varname '.*scale_factor + offset;']) % compute exact value of the variable
+    end
+end
+
+% delete dummy variables
+clear ncid i varname varid output_type scale_factor offset
+
+date = datetime((time/24)+2,'ConvertFrom','excel');
+
+sstm = mean(sst,3)-273.15;
+
+%% Auto-extraction of variables
+
+filename = 'sst_oct14_2005.nc';
+
+disp('Extracting surface file data...')
+
+ncid = netcdf.open(filename);
+info = ncinfo(filename); %returns all the informations about the file.nc
+output_type= ('''double''');
+for i = 1:length(info.Variables)
+    varname = info.Variables(i).Name;
+    varid = netcdf.inqVarID(ncid,varname);
+    eval([varname ' = netcdf.getVar(ncid,varid,' output_type ');'])
+    eval([varname ' = pagetranspose(' varname ');']) % sets the order of variables as latitude, longitude, level
+    if i > length(info.Dimensions) % excluding latitude, longitude and time variables
+        scale_factor = ncreadatt(filename,varname,'scale_factor');
+        offset = ncreadatt(filename,varname,'add_offset');
+        eval([varname ' = ' varname '.*scale_factor + offset;']) % compute exact value of the variable
+    end
+end
+
+% delete dummy variables
+clear ncid i varname varid output_type scale_factor offset
+
+date = datetime((time/24)+2,'ConvertFrom','excel');
+
+% lam = -10;
+% laM = 45;
+% lom = 360-110;
+% loM = 360-35;
+% 
+% lat_min = find(latitude==lam);
+% lat_max = find(latitude==laM);
+% lon_min = find(longitude==lom);
+% lon_max = find(longitude==loM);
+% 
+sst = sst - 273.15;
+% 
+% longitude = longitude(lon_min:lon_max);
+% latitude = latitude(lat_max:lat_min);
+
+%% 
+
+landmask = double(nc_varget('wilma_masks.nc','LANDMASK'));
+landmask = landmask.*-1 + 1;
+lkm = double(nc_varget('wilma_masks.nc','LAKEMASK'));
+lkm = lkm.*-1 + 1;
+
+lm = landmask.*lkm;
+
+
+%%
+
+sst_y = double(nc_varget('wilma/CTL_TSK.nc','TSK'))-273.15;
+sst_n = double(nc_varget('wilma/NOANM_TSK.nc','TSK'))-273.15;
+
+ssta = sst_y - sst_n;
+
+% for i = 1:721
+%     for j = 1:1440
+%         if ssta(i,j) <= -11.7 || ssta(i,j) >= 1.54
+%             ssta(i,j) = 0;
+%         end
+%         
+% %         if sstm(i,j) <= -1.68
+% %             sstm(i,j) = 0;
+% %         end
+%     end
+% end
+
+%%
+
+load coastlines
+fig1 = figure;
+fig1.Position = [182 271 1600 600]; 
+
+tld = tiledlayout(1,2);
+
+t1 = nexttile;
+hold on; 
+worldmap('World')
+worldmap([min(lat,[],'all') max(lat,[],'all')],[min(lon,[],'all') max(lon,[],'all')])
+axesm('miller','MeridianLabel','on','MLabelParallel','south','MLabelLocation',...
+    [-98:4:-72],'ParallelLabel','on','PLabelLocation',[12:4:30],'FontSize',12);
+pcolorm(lat,lon,sst_y.*lm); shading interp; colormap(t1,mymap); 
+
+cb = colorbar;
+cb.FontWeight = 'bold';
+cb.FontSize = 16;
+cb.Box = 'on';
+cb.LineWidth = 1;
+caxis([26 31]);
+cb.Label.String = '\bf \fontsize{16} Sea Surface Temperature (C)';
+
+setm(gca,'MapLatLimit',[12 30],'MapLonLimit',[-98 -71.4])
+framem on;
+framem('FlineWidth',3)
+tightmap;
+plotm(coastlat,coastlon,'k','LineWidth',0.5); hold on;
+title( 'Sea Surface Temperature' ,'FontSize',20,'FontWeight','bold');
+  
+%..........................................................................
+
+t2 = nexttile;
+hold on; 
+worldmap('World')
+axesm('miller','MeridianLabel','on','MLabelParallel','south','MLabelLocation',...
+    [-98:4:-72],'ParallelLabel','on','PLabelLocation',[12:4:30],'FontSize',12);
+pcolorm(lat,lon,ssta.*lm); shading interp; colormap(t2,anomalymap); 
+
+cb = colorbar;
+cb.FontWeight = 'bold';
+cb.FontSize = 16;
+cb.Box = 'on';
+cb.LineWidth = 1;
+caxis([-1.5 1.5]);
+cb.Label.String = '\bf \fontsize{16} Anomaly (C)';
+
+setm(gca,'MapLatLimit',[12 30],'MapLonLimit',[-98 -71.4])
+framem on;
+framem('FlineWidth',3)
+tightmap;
+plotm(coastlat,coastlon,'k','LineWidth',0.5)
+title( 'Anomaly ' ,'FontSize',20,'FontWeight','bold');
+
+text(0.62,0.05,'October 1985-2005 Reference','Units','normalized')
+
+title(tld,'October 14, 2005','FontSize',20,'FontWeight','bold');
+
+% print('wrf_sst','-dpng','-r200',fig1);

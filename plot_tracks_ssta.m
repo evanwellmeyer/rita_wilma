@@ -1,0 +1,218 @@
+% hurdat tracks
+
+clear all;
+
+wilma = import_gulf_extract('wilma_hurdat.txt');
+rita = import_gulf_extract('rita_hurdat.txt');
+
+%% import climate file 
+
+filename = 'sst_1985-2005.nc';
+
+ncid = netcdf.open(filename);
+info = ncinfo(filename); %returns all the informations about the file.nc
+output_type= ('''double''');
+for i = 1:length(info.Variables)
+    varname = info.Variables(i).Name;
+    varid = netcdf.inqVarID(ncid,varname);
+    eval([varname ' = netcdf.getVar(ncid,varid,' output_type ');'])
+    eval([varname ' = pagetranspose(' varname ');']) % sets the order of variables as latitude, longitude, level
+    if i > length(info.Dimensions) % excluding latitude, longitude and time variables
+        scale_factor = ncreadatt(filename,varname,'scale_factor');
+        offset = ncreadatt(filename,varname,'add_offset');
+        eval([varname ' = ' varname '.*scale_factor + offset;']) % compute exact value of the variable
+    end
+end
+
+% delete dummy variables
+clear ncid info i varname varid output_type scale_factor offset tf indx filename
+
+sst_mean = mean(sst,3);
+
+%% import rita file 
+
+filename = 'sst_sep20_2005.nc';
+
+ncid = netcdf.open(filename);
+info = ncinfo(filename); %returns all the informations about the file.nc
+output_type= ('''double''');
+for i = 1:length(info.Variables)
+    varname = info.Variables(i).Name;
+    varid = netcdf.inqVarID(ncid,varname);
+    eval([varname ' = netcdf.getVar(ncid,varid,' output_type ');'])
+    eval([varname ' = pagetranspose(' varname ');']) % sets the order of variables as latitude, longitude, level
+    if i > length(info.Dimensions) % excluding latitude, longitude and time variables
+        scale_factor = ncreadatt(filename,varname,'scale_factor');
+        offset = ncreadatt(filename,varname,'add_offset');
+        eval([varname ' = ' varname '.*scale_factor + offset;']) % compute exact value of the variable
+    end
+end
+
+% delete dummy variables
+clear ncid info i varname varid output_type scale_factor offset tf indx filename
+
+
+sstr = sst-273.15;
+
+%% import wilma file 
+
+filename = 'sst_oct14_2005.nc';
+
+ncid = netcdf.open(filename);
+info = ncinfo(filename); %returns all the informations about the file.nc
+output_type= ('''double''');
+for i = 1:length(info.Variables)
+    varname = info.Variables(i).Name;
+    varid = netcdf.inqVarID(ncid,varname);
+    eval([varname ' = netcdf.getVar(ncid,varid,' output_type ');'])
+    eval([varname ' = pagetranspose(' varname ');']) % sets the order of variables as latitude, longitude, level
+    if i > length(info.Dimensions) % excluding latitude, longitude and time variables
+        scale_factor = ncreadatt(filename,varname,'scale_factor');
+        offset = ncreadatt(filename,varname,'add_offset');
+        eval([varname ' = ' varname '.*scale_factor + offset;']) % compute exact value of the variable
+    end
+end
+
+% delete dummy variables
+clear ncid info i varname varid output_type scale_factor offset tf indx filename
+
+sstw = sst - 273.15;
+
+sstm = sst_mean - 273.15;
+
+for i = 1:721
+    for j = 1:1440
+        if sstr(i,j) <= -1.69
+            sstr(i,j) = 0;
+        end
+        
+        if sstw(i,j) <= -1.69
+            sstw(i,j) = 0;
+        end
+        
+        if sstm(i,j) <= -1.68
+            sstm(i,j) = 0;
+        end
+    end
+end
+
+sstar = (sstr - sstm);
+sstaw = (sstw - sstm);
+
+%% colormap
+
+
+    mymap = [0 0 1
+    0.05 0.05 1
+    0.1 0.1 1
+    0.15 0.15 1
+    0.2 0.2 1
+    0.25 0.25 1
+    0.3 0.3 1
+    0.35 0.35 1
+    0.4 0.4 1
+    0.45 0.45 1
+    0.5 0.5 1
+    0.55 0.55 1
+    0.6 0.6 1
+    0.65 0.65 1
+    0.7 0.7 1
+    0.75 0.75 1
+    0.8 0.8 1
+    0.85 0.85 1
+    0.9 0.9 1
+    0.95 0.95 1
+    1 1 1
+    1 0.95 0.95
+    1 0.9 0.9
+    1 0.85 0.85
+    1 0.8 0.8
+    1 0.75 0.75
+    1 0.7 0.7
+    1 0.65 0.65
+    1 0.6 0.6
+    1 0.55 0.55
+    1 0.5 0.5
+    1 0.45 0.45
+    1 0.4 0.4
+    1 0.35 0.35
+    1 0.3 0.3
+    1 0.25 0.25
+    1 0.2 0.2
+    1 0.15 0.15
+    1 0.1 0.1
+    1 0.05 0.05
+    1 0 0];
+
+%% Tracks
+
+[lon,lat]=meshgrid(longitude,latitude);
+
+fig1 = figure;
+fig1.Position = [182 271 1091 794];
+%gx = geoaxes;
+
+tiledlayout('flow')
+
+nexttile
+axesm('miller');
+c1 = pcolorm(lat,lon,sstaw); shading interp; colormap(mymap); hold on;
+plotm(wilma{:,8},wilma{:,9},'k','LineWidth',2); hold on;
+c2 = scatterm(wilma{:,8},wilma{:,9},100,wilma{:,11},'filled','markerEdgeColor','k');
+colormap(turbo);
+
+load coastlines
+plotm(coastlat,coastlon,'k','LineWidth',0.5)
+
+colorbar(c1,'westoutside');
+colorbar(c2,'eastoutside');
+caxis([900 1000]);
+colormap(flipud(turbo));
+cb.Label.String = '\bf \fontsize{20} Minimum Pressure (hPa) ';
+
+geobasemap none
+geolimits([14 40],[-97 -65])
+
+gx.FontSize = 15;
+legend('WILMA','RITA','location','northeast','FontSize',20)
+
+title('Minimum Pressure Tracks','FontSize',20)
+
+nexttile
+geoplot(rita{:,8},rita{:,9},'r','LineWidth',2); hold on;
+geoscatter(rita{:,8},rita{:,9},100,rita{:,11},'filled','markerEdgeColor','k');
+% print('wrf_tracks','-djpeg','-r200',fig1);
+
+%% both Tracks
+
+fig1 = figure;
+fig1.Position = [182 271 1091 794];
+gx = geoaxes;
+
+
+geoplot(wilma{:,8},wilma{:,9},'k','LineWidth',2); hold on;
+geoplot(rita{:,8},rita{:,9},'r','LineWidth',2);
+%geoplot(hurdat{10:27,8},hurdat{10:27,9},'k','LineStyle',':','LineWidth',2);
+
+geoscatter(wilma{:,8},wilma{:,9},100,wilma{:,11},'filled','markerEdgeColor','k');
+geoscatter(rita{:,8},rita{:,9},100,rita{:,11},'filled','markerEdgeColor','k');
+
+load coastlines
+geoplot(coastlat,coastlon,'k','LineWidth',0.5)
+
+cb = colorbar;
+cb.Location = 'eastoutside';
+caxis([900 1000]);
+colormap(flipud(turbo));
+cb.Label.String = '\bf \fontsize{20} Minimum Pressure (hPa) ';
+
+geobasemap none
+geolimits([14 40],[-97 -65])
+
+gx.FontSize = 15;
+legend('WILMA','RITA','location','northeast','FontSize',20)
+
+title('Minimum Pressure Tracks for WRF Simulations','FontSize',20)
+% print('wrf_tracks','-djpeg','-r200',fig1);
+
+

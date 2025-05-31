@@ -1,0 +1,117 @@
+
+clear all;
+
+% import wrf data
+norm = load('wilma_wrf_ssthr2.txt');
+noanm = load('wilma_wrf_sst_noanm2.txt');
+
+date = datetime(norm(:,1),norm(:,2),norm(:,3),norm(:,4),0,0);
+
+lat = nc_varget('wrfout_1800_SSTHR_subset2.nc','XLAT');
+lon = nc_varget('wrfout_1800_SSTHR_subset2.nc','XLONG');
+
+lat = double(squeeze(lat(1,:,:)));
+lon = double(squeeze(lon(1,:,:)));
+
+p = double(nc_varget('wrfout_1800_SSTHR_subset2.nc','PSFC'));
+p_no = double(nc_varget('wrfout_1800_SST_NOANM_subset2.nc','PSFC'));
+
+hfx = double(nc_varget('wrfout_1800_SSTHR_subset2.nc','HFX'));
+hfx_no = double(nc_varget('wrfout_1800_SST_NOANM_subset2.nc','HFX'));
+
+LH = double(nc_varget('wrfout_1800_SSTHR_subset2.nc','LH'));
+LH_no = double(nc_varget('wrfout_1800_SST_NOANM_subset2.nc','LH'));
+
+flux = hfx+LH;
+flux_no = hfx_no + LH_no;
+
+%% tracking
+
+mask_rad = 15;
+dt = 33;
+
+mask = zeros(dt,size(lat,1),size(lat,2));
+mask_no = zeros(dt,size(lat,1),size(lat,2));
+
+for t = 1:33
+    
+    % squeeze matrices to time step
+    SLP = squeeze(p(t,:,:));
+    SLP_no = squeeze(p_no(t,:,:));
+    
+    if t <= 1
+        LAT1 = lat > 14; LAT2 = lat < 18;
+        LON1 = lon > -82; LON2 = lon < -78;
+        xyLAT = LAT1.*LAT2; xyLON = LON1.*LON2;  
+        
+        % Confirm TC candidates
+        xy_TC = xyLAT.*xyLON;
+    end
+    
+    % create logical matrix for 200 km radius around minimum 
+    % Only store values if there are 'confirmed' TC's in timeframe 
+    if any(xy_TC==1,'all') && t <= 1
+        SLP = SLP.*xy_TC;
+        SLP_no = SLP_no.*xy_TC;
+    else
+        SLP = SLP .* squeeze(mask(t-1,:,:));  
+        SLP_no = SLP_no .* squeeze(mask_no(t-1,:,:)); 
+    end
+    
+    minimum = min(SLP(SLP>0),[],'all');
+    minimum_no = min(SLP_no(SLP_no>0),[],'all');
+    
+    [x,y] = find(SLP==minimum);
+    x=x(1); y=y(1);
+
+    msk = mk_mask(x,y,lat,95);
+    f_mskd = squeeze(flux(t,:,:)).*msk;
+    h_ttl(t) = mean(f_mskd(f_mskd>0),'all').*(3.3623*10^11).*10^(-12);
+    h_ttl2(t) = sum(f_mskd(f_mskd>0),'all').*(9).*10^(-12);
+    
+    mask(t,:,:) = mk_mask(x,y,lat,mask_rad);
+    SLP = squeeze(p(t,:,:)) .* squeeze(mask(t,:,:));
+    
+    [x,y] = find(SLP_no==minimum_no);
+    x=x(1); y=y(1);
+    
+    msk = mk_mask(x,y,lat,95);
+    f_no_mskd = squeeze(flux_no(t,:,:)).*msk;
+    h_no_ttl(t) = mean(f_no_mskd(f_no_mskd>0),'all').*(3.3623*10^11).*10^(-12);
+    
+    mask_no(t,:,:) = mk_mask(x,y,lat,mask_rad);
+    SLP_no = squeeze(p_no(t,:,:)) .* squeeze(mask_no(t,:,:));
+    
+        
+end
+
+%% heat 
+
+
+
+
+
+fig1 = figure;
+fig1.Position = [182 271 1500 600];
+
+
+plot(date(1:end),h_ttl(:),'k','LineWidth',1.5); hold on;
+plot(date(1:end),h_no_ttl(:),'k','LineStyle','--','LineWidth',1.5);
+ylabel('330km Radius Surface Heat (10^{12}W)','FontSize',20)
+ylim([30 270])
+xlim([date(1) date(end)])
+datetick('x',6)
+grid on;
+ax = gca;
+ax.FontSize = 15;
+
+legend('Normal','No Anomaly','location','northwest','FontSize',20)
+
+print('wrf_heat','-djpeg','-r200',fig1);
+
+%%
+
+wh = nansum(h_ttl).*93.*10^(-3);
+wh_no = nansum(h_no_ttl).*93.*10^(-3);
+
+
